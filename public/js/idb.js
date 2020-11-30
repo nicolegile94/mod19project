@@ -1,3 +1,6 @@
+const { response } = require("express");
+const { ServerResponse } = require("http");
+
 let db;
 
 const request = indexedDB.open('budget_tracker', 1)
@@ -11,7 +14,7 @@ request.onsuccess = function(event) {
     db = event.target.result;
 
     if (navigator.onLine) {
-
+        uploadTransaction
     }
 };
 
@@ -26,3 +29,41 @@ function saveRecord(record) {
 
     transactionObjectStore.add(record);
 };
+
+function uploadTransaction() {
+    const transaction = db.transaction(['new_transaction'], 'readwrite');
+
+    const transactionObjectStore = transaction.objectStore('new_transaction');
+
+    const getAll = transactionObjectStore.getAll();
+
+    getAll.onsuccess = function() {
+        if (getAll.result.length > 0) {
+            fetch('/api/transaction/bulk', {
+                method: 'POST',
+                body: JSON.stringify(getAll.result),
+                headers: {
+                    Accept: 'application/json, text/plain, */*',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(ServerResponse => {
+                if (ServerResponse.message) {
+                    throw new Error(ServerResponse);
+                }
+            
+                const transaction = db.transaction(['new_transaction'], 'readwrite');
+                const transactionObjectStore = transaction.objectStore('new_transaction');
+                transactionObjectStore.clear();
+
+                alert('All saved transactions have been submitted');
+            })
+            .catch(err => {
+                console.log(err);
+            });
+        }
+    }
+}
+
+window.addEventListener('online', uploadTransaction);
